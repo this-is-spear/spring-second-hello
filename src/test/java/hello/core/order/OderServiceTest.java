@@ -1,9 +1,12 @@
 package hello.core.order;
 
+import hello.core.AppConfig;
 import hello.core.discount.DiscountPolicy;
 import hello.core.discount.FixDiscountPolicy;
+import hello.core.discount.RateDiscountPolicy;
 import hello.core.member.*;
 import org.assertj.core.api.Assertions;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -14,9 +17,15 @@ import static org.junit.jupiter.api.Assertions.*;
  * Github : https://github.com/Imaspear
  */
 class OderServiceTest {
-    MemberService memberService = new MemberServiceImpl();
-    OrderService orderService = new OderServiceImpl();
+    MemberService memberService;
+    OrderService orderService;
 
+    @BeforeEach
+    public void beforeEach(){
+        AppConfig appConfig = new AppConfig();
+        memberService = appConfig.memberService();
+        orderService = appConfig.orderService();
+    }
     @Test
     public void createOrder() throws Exception{
         //given
