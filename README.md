@@ -193,3 +193,72 @@ public class AppConfig {
 - 프레임워크는 내가 작성한 코드를 제어한다. 대신 실행하면 그것은 프레임워크가 맞다.(JUnit)
 - 내가 작성한 코드가 직접 제어의 흐름을 담당한다면 그것은 프레임워크가 아니라 라이브러리이다.
 
+### 2021-12-14
+#### AppConfig 클래스를 스프링 컨테이너로 만들기 
+현재까지 AppConfig 클래스를 사용해서 직접 객체를 생성하고 의존성 주입을 했지만, 이제부터는 스프링 컨테이너를 통해 사용한다.
+스프링 컨테이너는 @Configuration 어노테이션이 붙은 AppConfig 클래스를 설정 정보로 사용한다.
+
+@Configuration 어노테이션을 이용해 스프링 컨테이너로 만들고 @Bean 어노테이션을 사용해 스프링 컨테이너에 등록을 한다.
+여기서 @Bean 어노테이션이 적힌 메서드를 모두 호출해서 반환된 객체를 스프링 컨테이너에 등록한다. 이렇게 스프링 컨테이너에 등록된 객체를 스프링 빈이라 한다.
+
+
+
+
+```java
+@Configuration
+public class AppConfig {
+    @Bean
+    public MemberRepository memoryRepository() {
+        return new MemoryRepository();
+    }
+
+    @Bean
+    public DiscountPolicy discountPolicy() {
+        return new RateDiscountPolicy();
+    }
+
+    @Bean
+    public MemberService memberService(){
+        return new MemberServiceImpl(memoryRepository());
+    }
+
+    @Bean
+    public OrderService orderService(){
+        return new OrderServiceImpl(memoryRepository(), discountPolicy());
+    }
+}
+```
+MemberServiceTest 클래스에서 확인 해보자. 아래 있는 코드는 원래 존재하는 코드이다. 이 코드에서 MemberService 클래스에서 
+```java
+class MemberServiceTest {
+    MemberService memberService;
+
+    @BeforeEach
+    public void beforeEach() {
+        AppConfig appConfig = new AppConfig();
+        memberService = appConfig.memberService();
+    }
+}
+```
+
+MemberServiceTest 클래스에서 빈을 스프링 컨테이너에 등록하고 사용해봤다.
+이 때, ApplicationContext 클래스를 스프링 컨테이너라고 한다. 
+AppConfig 클래스를 사용해서 직접 객체를 생성하고 의존성 주입을 했지만, 이제부터는 스프링 컨테이너를 통해 사용한다.
+```java
+class MemberServiceTest {
+    MemberService memberService;
+
+    @BeforeEach
+    public void beforeEach(){
+        ApplicationContext applicationContext = new AnnotationConfigApplicationContext(AppConfig.class);
+        memberService = applicationContext.getBean("memberService", MemberService.class);
+    }
+}
+```
+
+
+
+
+
+#### 더 복잡하게 빈을 등록하는 이유가 무엇일까?
+추후 업데이트
