@@ -8,7 +8,7 @@ import java.util.Map;
  * Blog : https://imspear.tistory.com/
  * Github : https://github.com/Imaspear
  */
-public class MemoryRepository implements MemberRepository{
+public class MemoryMemberRepository implements MemberRepository{
     private static Map<Long, Member> store = new HashMap<>();
 
     @Override
