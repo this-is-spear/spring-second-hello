@@ -1,13 +1,20 @@
 package hello.core.member;
 
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Component;
+
 /**
  * Created by Imaspear on 2021-12-11
  * Blog : https://imspear.tistory.com/
  * Github : https://github.com/Imaspear
  */
+
+@Component
 public class MemberServiceImpl implements MemberService{
+
     private final MemberRepository memberRepository;
 
+    @Autowired
     public MemberServiceImpl(MemberRepository memberRepository) {
         this.memberRepository = memberRepository;
     }

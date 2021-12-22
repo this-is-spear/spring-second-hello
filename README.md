@@ -299,7 +299,7 @@ public class AnnotationConfigApplicationContext extends GenericApplicationContex
 
 #### 스프링 컨테이너 생성
 
-스프링 컨테이너 생성하는 방법
+스프링 컨테이너를 객체로 생성하는 방법
 ```java
         ApplicationContext applicationContext = new AnnotationConfigApplicationContext(AppConfig.class);
 ```
@@ -684,7 +684,7 @@ BeanDefinition 정보
 
 
 
-**전역 변수 등 공유 필드는 조심해야 한다. **
+**전역 변수 등 공유 필드는 조심해야 한다.**
 
 
 
@@ -732,7 +732,7 @@ call AppConfig.memoryRepository
 call AppConfig.memberService
 call AppConfig.orderService
 
-#### Configuration과 바이트코드 조작의 마법
+####  @Configuration 애너테이션과 바이트코드 조작의 마법
 스프링 컨테이너는 싱글톤 레지스트리이다. 따라서 스프링 빈이 싱글톤이 되도록 보장해줘야 한다.
 그런데 스프링이 자바코드 까지 어떻게 하기는 어렵다. 위와 같은 호출 형식을 본다면 memoryRepository() 메서드는 3번 호출되야 
 맞는 순서이지만 스프링은 그렇지 않다.
@@ -753,3 +753,260 @@ call AppConfig.orderService
 
 코드로 @ComponentScan 애너테이션과 의존관계 자동 주입을 알아보자
 
+#### @ComponentScan 애너테이션에 등록되는 스프링 이름은 어떻게 저장될까? 
+@ComponentScan 애너테이션은 @Component 애너테이션이 붙은 모든 클래스를 스프링 빈으로 등록한다. 이 떄, 빈의 기본 이름은 클래스명을 
+사용하되 맨 앞글자만 소문자를 사용한다.
+- 빈 이름 기본 전략 
+  - MemberServiceImpl 클래스 -> memberServiceImpl
+- 빈 이름 직접 지정
+  - 만약 스프링 빈의 이름을 직접 지정하고 싶으면 @Component("memberService)라고 이름을 직접 부여하면 된다.
+
+#### @Autowired 의존관계 자동 주입
+생성자에 @Autowired 애너테이션을 지정하면 스프링 컨테이너가 자동으로 해당 스프링 빈을 찾아 주입한다. 생성자에서 주는 인자의 해당 타입을 뒤져서 가져온다.
+**이름은 달라도 같은 타입이 여러개 있으면 충돌이 일어난다.**
+
+### @ComponentScan 스캔의 탐색 위치와 기본 스캔 대상
+#### 탐색할 패키지의 시작 위치 지정
+모든 자바 클래스를 다 컴포넌트 스캔하면 시간이 오래 걸린다. 그래서 꼭 필요한 위치부터 탐색하도록 시작 위치를 지정할 수 있다.
+```java
+@ComponentScan(
+        basePackages = "hello.core", // 해당 패키지부터 @Component 애너테이션이 붙은 클래스를 찾는다.
+        basePackagesClasses = AutoAppConfig.class, //이 클래스 위의 패키지 부터 @Component 애너테이션이 붙은 클래스를 찾는다.
+        excludeFilters = @ComponentScan.Filter(type = FilterType.ANNOTATION, classes = Configuration.class)
+)
+public class AutoAppConfig {
+
+}
+```
+- backPackages
+  - 탐색할 위치를 지정할 수 있다. 이 패키지를 포함해서 하위 패키지를 모두 탐색한다.
+- basePackageClasses
+  - 지정한 클래스의 패키지를 탐색 시작 위로 지정한다.
+- 만약 지정하지 않으면 @ComponentScan이 붙은 설정 정보 클래스의 패키지가 시작 위치가 된다.
+
+**권장하는 방법**
+> 개인적으로 즐겨 사용하는 방법은 패키지 위치를 지정하지 않고, 설정 정보 클래스의 위치를 프로젝트 최상단에 두는 것이다. 최든 스프링 부트도
+> 이 방법을 기본적으로 제공한다.
+
+> 스프링 부트를 사용하면 스프링 부트 대표 시작 정보인 @SpringBootApplication 애너테이션이 붙은 클래스와 같은 시작 루트 위치에 두는 것이
+> 관례이다.
+
+#### 컴포넌트 스캔 대상
+- @Component
+  - 컴포넌트 스캔에서 사용
+- @Controller
+  - 스프링 MVC 컨트롤러에서 사용
+- @Service
+  - 스프링 비즈니스 로직에서 사용
+- @Repository
+  - 스프링 데이터 계층에서 사용
+- @Configuration
+  - 스프링 설정 정보에서 사용
+
+
+#### 그러면 위와 같은 컴포넌트를 만들고 구성 설정 정보를 만들지 않으면 자동으로 스프링 컨테이너가 생성되지 않고, 싱글톤 컨테이너를 이용할 수 없는가? 
+@Configuration 애너테이션을 통해 수동으로 빈을 등록하지 않고 ComponentScan을 통해 빈을 등록하더라도 싱글톤(스코프를 변경하지 않는 이상)으로 관리된다고 한다.
+
+> 애너테이션에는 상속 관계가 없다. 애너테이션이 특정 애너테이션을 들고 있는 것을 인식할 수 있는 것은 
+> 자바 언어가 지원하는 기능이 아니고 스프링이 지원하는 기능이다.
+ 
+컴포넌트 스캔의 용도 뿐만 아니라 다음 애너테이션이 있으면 스프링은 부가 기능을 수행한다.
+- @Controller
+  - 스프링 MVC 컨트롤러로 인식한다.
+- @Service
+  - 이 애너테이션에는 특별한 처리를 하지 않지만 개발자들은 이 곳에 핵심 비즈니스 로직이 있겠구나라고 인식하는데 도움이 된다.
+- @Repository
+  - 스프링 데이터 접근 계층으로 인식하고, 데이터 계층의 예외를 스프링 예외로 변환해준다.
+- @Configuration
+  - 스프링이 설정 정보로 인식하고, 스프링 빈이 싱글톤을 유지하도록 추가 처리를 한다.
+
+
+## 2021-12-22
+
+### FilterType
+- includeFilters
+- excludeFilters
+
+#### FilterType
+- ANNOTATION
+  - 기본값, 애너태이션을 인식해 동작한다.
+- ASSIGNABLE_TYPE
+  - 지정한 타입과 자식 타입을 인식해서 동작한다.
+- ASPECTJ
+  - AspectJ 패턴을 사용한다.
+- REGEX
+  - 정규 표현식이다.
+- CUSTOM
+  - 'TypeFilter' 이라는 인터페이스를 구현해 처리한다.
+
+#### BeanA 빈도 제외하고 싶은 경우에 ASSIGNABLE_TYPE 타입을 이용한다.
+
+```java
+    @Configuration
+    @ComponentScan(
+            includeFilters = @Filter(type = FilterType.ANNOTATION, classes = MyIncludeComponent.class),
+            excludeFilters = {
+                    @Filter(type = FilterType.ANNOTATION, classes = MyExcludeComponent.class),
+                    @Filter(type = FilterType.ASSIGNABLE_TYPE, classes = BeanA.class)
+            }
+    )
+    static class ComponentFilterAppConifg{
+
+    }
+```
+
+### 중복 등록과 충돌
+> 컴포넌트 스캔에서 같은 빈 이름을 등록하면 어떻게 될까 ?
+ 
+1. 자동 빈 등록 vs 자동 빈 등록
+2. 수동 빈 등록 vs 자동 빈 등록
+
+#### 자동 빈 등록 vs 자동 빈 등록
+> 컴포넌트 새킨에 의해 자동으로 스프링 빈이 등록 되는데, 이름이 같은 경우  **ConflictingBeanDefinitionException 예외**라는 
+> 스프링이 오류를 발생시킨다.
+
+#### 수동 빈 등록 vs 자동 빈 등록
+> **이 경우 수동 등록 빈이 우선권을 가진다는 점을 알아야 한다.** (수동 빈이 자동 빈을 오버라이딩 해버린다.)
+ 
+스프링은 친절하게 수동 빈이 자동 빈을 오버라이드시 남는 로그를 남겨준다.
+
+이러한 경우는 개발자가 의도적으로 설정해서 나오는 경우가 아니라 설정들이 꼬여서 이런 결과가 나오는 경우가 대부부이다.
+**그러면 정말 잡기 어려운 버그가 만들어진다. 항상 잡기 어려운 버는 애매한 버그이다.** 그래서 최근 스프링 부트에서는 수동 빈 등록과
+자동 빈 등록이 충돌나면 오류가 발생하도록 기본 값을 바꿨다. (Test 환경에서는 오버라이드 된다.)
+
+#### 왜 Test에서는 오류가 나지 않는가? 
+스프링의 코어 모듈은 에러가 나지 않고 오버라이딩을 주지만, 스프링 부트는 default 값을 false로 줘서 오류가 나도록
+설정하기 때문이다.
+
+#### 수동 빈 등록, 자동 빈 등록 오류시 스프링 부트 에러
+스프링의 코어 모듈은 에러가 나지 않고 오버라이딩을 주지만, 스프링 부트는 실행 환경의 default 값을 false로 줘서 오류가 나도록
+설정했다. 그래서 오버라이딩을 의도적으로 하려면 spring.main.allow-definition-overriding=true 값을 application.properties 설정 파일에 
+추가 해줘야 한다.
+
+**하지만 좋은 방법은 아니다. 개발은 혼자 하는게 아니니 애매한 상황을 만들어 주변 사람을 혼란하게 만들지 말자.**
+
+### 다양한 의존 관계 주입 방법
+- 생성자 주입
+- 수정자 주입(setter 주입)
+- 필드 주입
+- 일바 메서드 주입
+
+#### 생성자 주입(@Autowired)
+- 생성자 호출 시점에서 딱 한번만 호출되는 것이 보장된다.
+- **불변,필수(final) 의존관계에 사용**
+- 안에 데이터를 임의로 넣지 못하도록 설계해야 한다. (불변)
+- final을 붙이면 값이 꼭 있어야 한다고 지정하는 것이다. (필수)
+
+> **생성자가 딱 하나만 있으면 @Autowired 애너테이션을 생략해도 자동 주입된다.(물론 스프링 빈에만)**
+
+#### 수정자 주입(setter 주입)
+- setter  필드의 값을 결정하는 수정자 메서드를 통해서 의존관계를 주입하는 방법이다.
+- @Autowired 애너테이션을 설정해 줘야 의존 관계 주입이 일어난다.
+- 생성자 호출 후 순서대로 setter 메서드 호출한다. 즉, 의존관계 주입 두 번째에서 일어 난다.(첫 번째는 생성자를 빈에 등록(주입))
+- **선택, 변경 가능한 의존관계에 사용**
+- 자바빈 프로퍼티 규약의 수정자 메서드 방식을 사용하는 방법이다.
+
+> @Autowired 애너테이션의 기본 동작은 주입할 대상이 없으면 오류가 발생한다. 주입할 대상이 없어도 
+> 동작하게 하려면 '@Autowired(required=false)'로 지정해야한다.
+
+> 자바빈 프로퍼티, 자바에서는 과거부터 필드의 값을 직접 변경하지 않고,getter, setter라는 메서드를 통해 
+> 값을 읽거나 수정하는 규칙을 만들었는데, 그것이 자바빈 프로퍼티 규약이다.
+ 
+#### 필드 주입
+>이름 그대로 필드에 바로 주입하는 방법이다.
+- 코드가 간결해서 많은 개발자들을 유혹하지만 외부에서 변경이 불가능해서 테스트 하기 힘들다는 치명적인 단점이 있다.
+- DI 프레임워크가 없으면 아무것도 할 수 없다.
+- **실제 환경에서 절대 사용 금지!!**
+  - 간단한 테스트 코드(애플리케이션과 관계없는 코드)에서만 사용
+  - @Configuration 애너테이션이 붙은 설정 파일 같은 특별한 곳만 사용
+
+####일반 메서드 주입
+>일반 메서드를 통해서 주입할 수 있다.
+- 한번에 여러 필드를 주입 받을 수 있다.
+- **일반적으로 잘 사용하지 않는다.**
+
+> 어쩌면 당연한 이야기지만 의존관계 자동 주입은 스프링 컨테이너가 관리하는 
+> 스프링 빈이어야 동작한다. 스프링 빈이 아닌 코드에서 @Autowired 코드를 적용해도 
+> 아무 기능을 하지 않는다.
+
+
+### 옵션 처리
+> 주입할 스프링 빈이 없어도 동작해야 할 때가 있다.
+> 그런데, @Autowired 애너테이션만 사용하면 'required' 옵션의 기본값이 true로 되어 있어서
+> 자동 주입 대상이 없으면 오류가 발생한다.
+ 
+자동 주입 대상을 옵션으로 처리하는 방법
+- '@Autowired(required=false)'
+  - 자동 주입할 대상이 없으면 수정자 메서드 자체가 호출이 안된다.
+- org.springframework.lang.@Nullable
+  - 자동 주입할 대상이 없으면 null이 입력된다.
+- Optional<>
+  - 자동 주입할 대상이 없으면 Optional.empty가 입력된다.
+
+> Optional, @Nullable은 스프링 전반에 걸쳐 지원한다. 예를 들어 생성자 자동 주입에서 특정 필드만 사용해도 된다.
+
+```java
+
+    static class TestBean{
+        @Autowired(required = false)
+        public void setNoBean1(Member noBean1){
+            System.out.println("noBean1 = " + noBean1);
+        }
+        @Autowired
+        public void setNoBean2(@Nullable Member noBean2){
+            System.out.println("noBean2 = " + noBean2);
+        }
+
+        @Autowired
+        public void setNoBean3(Optional<Member> noBean3){
+            System.out.println("noBean3 = " + noBean3);
+        }
+
+    }
+```
+
+Member 참조 객체는 스프링 빈이 아니기 때문에 (required = false) 이 명령어가 없다면 에러가 난다.
+하지만 이 명령어가 있다고 해도 의존관계가 없으면 아래 메소드는 아예 호출이 되지 않는다.
+**즉, Member는 스프링 빈이 아니기 때문에 호출이 되지 않는다.**
+
+
+### 생성자 주입을 선택해라!
+> 과거에는 수정자 주입과 필드 주입을 많이 사용했지만, 최근에는 스프링을 포함한 DI 프레임워크 대부분이 생성자 주입을 권장한다.
+> 그 이유는 다음과 같다
+
+#### **불변**
+- 대부분의 의존관계 주입은 한 번 일어나면 애플리케이션 종료시점까지 의존관계를 변경할 일이 없다. 오히려 대부분의 의존관계는 애플리케이션 종료 전까지 변하면 안된다. (불변)
+- 수정자 주입을 사용하면 setter 메서드를 public으로 열어야 한다.
+- 누군가 실수로 변경할 수 도 있고, 변경하면 안되는 메서드를 열어두는 것은 좋은 설계 방법이 아니다.
+- 생성자 주입은 객체를 생성할 때 딱 한 번만 호출되므로 이후에 호출되는 일이 없다. 따라서 불변하게 설계할 수 있다.
+
+#### **누락**
+프레임워크 없이 순수한 자바 코드를 단위 테스트 하는 경우 setter 메서드를 통해 의존관계를 주입한다면 NPE(Null Point Exception)이 발생하는데, 
+memberRepository, discountPolicy 모두 의존관계가 누락됐기 때문에 생기는 예외이다.
+```java
+@Test
+void createOrder() throws Exception{
+    OrderServiceImpl orderService = new OrderServiceImpl();
+    orderService.createOrder(1L, "itemA", 10000);
+}
+```
+이 때, 생성자 주입을 사용했을 때, 위와 같이 **주입 데이터를 누락하면 컴파일 오류가 발생한다.**
+컴파일 오류가 일어나면 오류를 쉽게 찾을 수 있는 방법을 제공해주고, 가장 빠르게 오류를 찾아낸다.
+
+### final 키워드
+생성자 주입을 통한 설계를 하면 **final** 키워드를 이용해 실수로 생성자에 멤버 변수를 넣지 않았을 때, 
+오류가 나서 쉽게 찾을 수 있도록 설계할 수 있다.
+
+> 수정자 주입을 포함한 나머지 주입 방식은 모두 생성자 이후에 호출되므로, 필드에 'final' 키워드를 사용할 수 없다.
+> **오직 생성자 주입 방식만 'final'을 사용할 수 있다.**
+
+### 정리
+- 생성자 주입 방식을 선택하는 이유는 여러가지가 있지만, 프레임워크에 의존하지 않고, 순수한 자바 언어의 특징을 잘 살리는 방법이다.
+- 기본으로 생성자 주입을 사용하고, 필수 값이 아닌 경우에는 수정자 주입 방식을 옵션으로 부여하면 된다. 생성자 주입과 수정자 주입을 동시에 사용할 수 없다.
+- **항상 생성자 주입을 선택해라! 그리고 가끔 옵션이 필요하면 수정자 주입을 선택해라. 필드 주입은 사용하지 않는게 좋다.**
+
+#### 수정자 주입이 필요한 상황은 언제일까?
+수정자 주입은 의존성을 선택적으로 사용할 때 유용하다. (옵션이 필요할 때)
+
+#### 필드 주입
+필드 주입을 해버리면 불변하지 않는다는 단점과 누락될 수 있다는 단점이 존재하고, 스프링 컨테이너 없이는 테스트가 불가능하다.
