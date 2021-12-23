@@ -31,8 +31,11 @@ import org.springframework.context.annotation.Configuration;
 
 @Configuration
 public class AppConfig {
+    // 분명 AutoAppConfig.class 안에 이 AppConfig 클래스가 실행되지 않도록 설정했는데, 설정이 되면서 memoryRepository 라는 빈 이름이 생겼다.
+    // 그 외에 자동 등록을 하기 위해서 @Component 애너테이션을 붙였던 MemoryMemberRepository 클래스가 자동으로 등록이 되면서 같은 타입의 빈이 중복이 되어
+    // 충돌이 일어났다..
     @Bean
-    public MemberRepository memoryRepository() {
+    public MemberRepository memberRepository() {
         System.out.println("call AppConfig.memoryRepository");
         return new MemoryMemberRepository();
     }
@@ -45,12 +48,12 @@ public class AppConfig {
     @Bean
     public MemberService memberService(){
         System.out.println("call AppConfig.memberService");
-        return new MemberServiceImpl(memoryRepository());
+        return new MemberServiceImpl(memberRepository());
     }
 
     @Bean
     public OrderService orderService(){
         System.out.println("call AppConfig.orderService");
-        return new OrderServiceImpl(memoryRepository(), discountPolicy());
+        return new OrderServiceImpl(memberRepository(), discountPolicy());
     }
 }

@@ -895,7 +895,7 @@ public class AutoAppConfig {
 - 생성자 호출 시점에서 딱 한번만 호출되는 것이 보장된다.
 - **불변,필수(final) 의존관계에 사용**
 - 안에 데이터를 임의로 넣지 못하도록 설계해야 한다. (불변)
-- final을 붙이면 값이 꼭 있어야 한다고 지정하는 것이다. (필수)
+- final 키워드를 붙이면 값이 꼭 있어야 한다고 지정하는 것이다. (필수)
 
 > **생성자가 딱 하나만 있으면 @Autowired 애너테이션을 생략해도 자동 주입된다.(물론 스프링 빈에만)**
 
@@ -984,6 +984,7 @@ Member 참조 객체는 스프링 빈이 아니기 때문에 (required = false) 
 프레임워크 없이 순수한 자바 코드를 단위 테스트 하는 경우 setter 메서드를 통해 의존관계를 주입한다면 NPE(Null Point Exception)이 발생하는데, 
 memberRepository, discountPolicy 모두 의존관계가 누락됐기 때문에 생기는 예외이다.
 ```java
+
 @Test
 void createOrder() throws Exception{
     OrderServiceImpl orderService = new OrderServiceImpl();
@@ -998,7 +999,7 @@ void createOrder() throws Exception{
 오류가 나서 쉽게 찾을 수 있도록 설계할 수 있다.
 
 > 수정자 주입을 포함한 나머지 주입 방식은 모두 생성자 이후에 호출되므로, 필드에 'final' 키워드를 사용할 수 없다.
-> **오직 생성자 주입 방식만 'final'을 사용할 수 있다.**
+> **오직 생성자 주입 방식만 'final' 키워드를 사용할 수 있다.**
 
 ### 정리
 - 생성자 주입 방식을 선택하는 이유는 여러가지가 있지만, 프레임워크에 의존하지 않고, 순수한 자바 언어의 특징을 잘 살리는 방법이다.
@@ -1010,3 +1011,184 @@ void createOrder() throws Exception{
 
 #### 필드 주입
 필드 주입을 해버리면 불변하지 않는다는 단점과 누락될 수 있다는 단점이 존재하고, 스프링 컨테이너 없이는 테스트가 불가능하다.
+
+
+## 2021-12-23
+
+### lombok
+
+> 롬복 라이브러리가 제공하는 '@RequiredArgsConstructor' 기능을 사용하면 final 키워드가 붙은 필드를 모아 생성자를 자동으로 만들어 주며, 
+> 생성자 코드는 보이지 않지만 실제 호출이 가능하다.
+
+> 최근에는 생성자를 딱 하나를 두고, @Autowired 애너테이션을 생략하는 방법을 주로 사용한다. 여기에 Lombok 라이브러리의 '@RequiredArgsConstructor' 애너테이션과
+> 함께 사용하면 코드가 간결해진다.
+ 
+### 조회할 빈이 2개 이상일 떄의 문제
+
+@Autowired 애너테이션은 타입으로 조회한다. 그렇기에 getBean(Class<T> class)와 같이 메서드 이름이 제공되지 않은 getBean() 메서드와 유사하게 동작한다. (실제로는 @Autowired 애너테이션이 더 많은 기능을 제공한다.)
+
+스프링 빈 조회하면서 알 수 있듯이 타입으로 조회할 때, 같은 타입이 두개 이상이면 문제가 발생한다.
+
+이 때, 하위 타입으로 지정할 수도 있지만, 하위 타입으로 지정하는 것은 DIP를 위배하고 유연성이 떨어진다. 그리고 이름만 다르고 완전히 똑같은 타입의 스프링 빈이
+두 개 있을 때는 해결이 되지 안흔ㄴ다. 스프링 빈을 수동 등록해 문제를 해결해도 되지만, 의존 관계 자동 주입에서 해결하는 여러 방법이 있다.
+
+#### @Autowired 필드 명, @Quilifire, @Primary
+1. @Autowired 필드 명 매칭
+2. @Quilifier -> @Quilifier 끼리 매칭 -> 빈 이름 매칭
+3. @Primary 사용 
+ 
+##### @Autowired 필드 명 매칭
+> @Autowired 애너테이션 타입 매칭을 시도하고 여러 빈이 있으면 **이름, 파라미터 이름으로 빈 이름을 추가 매칭한다.**
+
+```java
+@Component
+public class OrderServiceImpl implements OrderService {
+
+    private final MemberRepository memberRepository;
+    private final DiscountPolicy discountPolicy;
+
+    @Autowired
+    public OrderServiceImpl(MemberRepository memberRepository, DiscountPolicy fixDiscountPolicy) {
+        this.memberRepository = memberRepository;
+        this.discountPolicy = fixDiscountPolicy;
+    }
+}
+```
+
+##### @Quilifier -> @Quilifier 끼리 매칭 -> 빈 이름 매칭
+> 추가 구분자를 붙여주는 방법이다. 주입시 추가적인 방법을 제공하는 것이지, 빈 이름을 변경하는 것은 아니다.
+
+```java
+@Component
+public class OrderServiceImpl implements OrderService {
+
+    private final MemberRepository memberRepository;
+    private final DiscountPolicy discountPolicy;
+
+    @Autowired
+    public OrderServiceImpl(MemberRepository memberRepository, @Qualifier("mainDiscountPolicy") DiscountPolicy discountPolicy) {
+        this.memberRepository = memberRepository;
+        this.discountPolicy = discountPolicy;
+    }
+}
+```
+
+##### 못 찾으면 어떡할까? 
+해당 "mainDiscountPolicy" string 인자로 준 이름의 스프링 빈을 추가로 찾는다. 
+하지만, @Qualifier 애너테이션은 @Qualifier 애너테이션 이름이 붙은 빈을 찾는 용도로만 사용하는게 명확하고 좋다.
+
+> 정리하자면 @Qualifier 끼리 매칭이 되고, 없으면 빈 이름이 매칭이 된다. 그것 마저도 없으면 NoSuchBeanDefinitionException 예외가 발생한다.
+
+##### @Primary 사용 <- 자주 사용하는 애너테이션
+@Primary 애너테이션은 우선 순위를 지정하는 방법이다. @Autowired 애너테이션을 이용해 의존성 주입이 될 떄, 여러 빈이 매칭이 되면 @Primary 애너테이션을 가진 
+구현체가 우선권을 가진다.
+
+주로 메인 DB가 존재하고 보조가 DB이 있으면 메인 DB에 커넥션 빈을 이용해 데이터를 가지고 올때, @Qualifier 애너테이션을 사용하고, 
+보조 DB에 커넥션할 때도, @Qualifier 애너테이션을 이용해 사용하면 번거로워진다.
+그럼 이때 사용이 많은 메인 DB에 @Primary 애너테이션을 이용해 우선권을 가지게 해서 사용하게 만들면 코드를 깔끔하게 관리할 수 있다.
+
+```java
+@Component
+@Primary
+public class RateDiscountPolicy implements DiscountPolicy {
+}
+```
+
+##### 하지만 @Primary, @Quilifier 중 누가 먼저 동작할까? 
+@Primary 애너테이션이 기본값처럼 동작하고, @Quilifier 애너테이션은 매우 상세하게 동작한다.
+스프링은 이러한 좁은 범위의 선택권에 우선권을 주므로, 이런 경우에는 @Quilifier 애너테이션 우선권이 높다.
+
+### 애너테이션 직접 만들기
+다양한 상황에 놓인 환경에서 아래와 같이 애너테이션을 직접 생성해서 관리하면 코드가 간결해지고 명확해진다.
+
+애너테이션 재정의
+```java
+@Target({ElementType.FIELD, ElementType.METHOD, ElementType.PARAMETER, ElementType.TYPE, ElementType.ANNOTATION_TYPE})
+@Retention(RetentionPolicy.RUNTIME)
+@Inherited
+@Documented
+@Qualifier("mainDiscountPolicy")
+public @interface MainDiscountPolicy {
+}
+```
+
+@Qualifier 애너테이션을 대체해서 사용
+```java
+@Component
+@MainDiscountPolicy
+public class RateDiscountPolicy implements DiscountPolicy {
+}
+```
+@Qualifier 애너테이션을 대체해서 사용
+```java
+@Component
+public class OrderServiceImpl implements OrderService{
+
+    private final MemberRepository memberRepository;
+    private final DiscountPolicy discountPolicy;
+
+    @Autowired
+    public OrderServiceImpl(MemberRepository memberRepository,@MainDiscountPolicy DiscountPolicy discountPolicy) {
+        this.memberRepository = memberRepository;
+        this.discountPolicy = discountPolicy;
+    }
+}
+```
+
+애너테이션에는 상속이라는 개념이 없다. 이렇게 여러 애너테이션을 모아 사용하는 기능은 스프링이 지원해주는 기능이다.
+@Qualifier 애너테이션 뿐만 아니라 다른 애너테이션도 함께 조합해서 사용할 수 있다. 단적으로 @Autowired 애너테이션도 재정의 할 수 있다.
+물론 스프링이 제공하는 기능을 뚜렷한 목적 없이 무분별하게 재정의 하는 것은 유지보수에 더 혼란만 가중할 수 있다.
+
+
+### 조회한 빈을 모두 사용해야 할 때 (List, Map 이용)
+할인 서비스를 제공하는데 클라이언트가 할인의 종류(rate, fix)를 선택할 수 있다고 가정할 때, 스프링을 사용하면 소위 말하는 전략 패턴을 이용해 매우 간단하게 
+구현할 수 있다.
+
+#### 로직 분석
+1. DiscountService는 Map으로 모든 DiscountPolicy 타입의 구현체를 주입받는다. 이때, fixDiscountPolicy, rateDiscountPolicy 구현체가 주입된다.
+2. dicount() 메서드는 dicountCode로 fixDiscountPolicy 구현체가 넘어오면 map에서 fixDiscountPolicy 스프링 빈을 찾아 실행한다. 물론, rateDiscountPolicy 구현체가 넘어오면 rateDiscountPolicy 구현체가 실행된다.
+
+#### 주입 분석
+- Map<String, DiscountPolicy>
+  - map 키에 스프링 빈의 이름을 넣어주고, 그 값으로 DiscountPolicy 타입으로 조회한 모든 스프링 빈을 담는다.
+- List<DiscountPolicy>
+  - DiscountPolicy 타입으로 조회한 모든 스프링 빈을 담아준다.
+- 만약 해당하는 타입의 스프링 빈이 없으면, 빈 컬렉션이나 Map을 주입한다.
+
+### 자동 빈 등록, 수동 빈 등록
+자동 빈 등록을 이용해 빈을 편리하게 등록할 수 있다. 하지만 그렇게 되면 수동 빈 등록에 대한 장점이 없는데 어떤 상황에서 사용할 수 있을까? 
+
+#### 수동 빈 등록은 언제 사용하면 좋을까? 
+1. 업무 로직 빈
+    - 비즈니스 요사항을 개발할 때 추가되거나 변경된다.
+2. 기술 지원 빈
+    - 기술적인 문제나 공통 관심사(AOP)를 처리할 때 주로 사용된다. 데이터베이스 연결이나, 공통 로그 처리처럼 업무 로직을 지원하기 위한 하부 기술이나 공통 기술들이다.
+
+> 애플리케이션에 광범위하게 영향을 미치는 기술 지원 객체는 수동 빈으로 등록해서 설정 정보에 바로 나타나게 코드를 짜는 것이 유지보수하기 수월하다.
+> **그러나 스프링과 스프링 부트가 자동으로 등록하는 수 많은 빈들은 예외다.**
+
+> 또한 비즈니스 로직 중에서 다형성을 적극 활용할 때 적합하다.
+
+하지만 동일한 타입의 모든 빈들을 조회할 필요가 있을 때, List나 Map으로 관리하려고 할 때, 각 상황마다 어떤 빈들이 주입될 지, 각 빈들의 이름은 무엇인지 코드만 보고
+쉽게 파악하는 것은 불가능하다.
+
+이런 경우 수동 빈으로 등록하거나 특정 패키지에 같이 묶어서 관리하는 것이 좋다.
+```java
+@Configuration
+public class DiscountPolicyConfig{
+    
+    @Bean
+    public DiscountPolicy rateDiscountPolicy(){
+        return new rateDiscountPolicy();
+    }
+    
+    @Bean
+    public DiscountPolicy fixDiscountPolicy(){
+        return new fixDiscountPolicy();
+    }
+}
+```
+#### 정리
+- 편리한 자동 기능을 기본으로 사용하자.
+- 직접 등록하는 기술 지원 객체는 수동 등록하자.
+- 다형성을 적극 활용하는 비즈니스 로직은 수동 등록을 고민하자.
