@@ -1,5 +1,6 @@
 package hello.core.lifeCycle;
 
+import org.springframework.beans.factory.InitializingBean;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
@@ -12,7 +13,7 @@ import org.testng.annotations.Test;
  * Blog : https://imspear.tistory.com/
  * Github : https://github.com/Imaspear
  */
-public class BeanLifeCycleTest {
+public class BeanLifeCycleTest{
 
     @Test
     public void lifeCycleTest() throws Exception{
@@ -24,6 +25,7 @@ public class BeanLifeCycleTest {
 
     @Configuration
     static class LifeCycleConfig{
+//        @Bean(initMethod = "init", destroyMethod = "close")
         @Bean
         public NetworkClient networkClient(){
             NetworkClient networkClient = new NetworkClient();
@@ -31,4 +33,5 @@ public class BeanLifeCycleTest {
             return networkClient;
         }
     }
+
 }

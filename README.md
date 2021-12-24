@@ -1236,6 +1236,94 @@ public class DiscountPolicyConfig{
 #### 스프링은 크게 3가지 방법으로 생명주기 콜백을 지원한다.
 - 인터페이스
   - InitializingBean
-  - DisposableBean
+    - afterPropertiesSet() : 메서드 초기화 지원
+  - DisposableBean : 메서드 소멸을 지원
+    - destroy()
 - 설정 정보에서
 - 애너테이션
+
+##### 인터페이스
+
+초기화 소멸 인터페이스 단점
+- 인터페이스는 스프링 전용 인터페이스다. 해당 코드가 스프링 전용 인터페이스에 의존한다.
+- 초기화, 소멸 메서드의 이름을 변경할 수 없다.
+- 내가 코드를 고칠 수 없는 외부 라이브러리에 제공할 수 없다.
+
+> 인터체이스를 사용하는 초기화와 종료 방법은 스프링 초창기에 나온 방법들이고, 지금은 더 나은 방법들을 제공하고 있다.
+
+```java
+public class NetworkClient  implements InitializingBean, DisposableBean {
+    private String url;
+
+    public NetworkClient() {
+        System.out.println("생성자 호출 url = " + url);
+    }
+
+    public void connect(){
+        System.out.println("connect : " + url);
+    }
+
+    public void call(String message){
+        System.out.println("call : " + url + "message = "+message);
+    }
+
+    public void disconnect(){
+        System.out.println("close : " + url);
+    }
+
+    public void setUrl(String url) {
+        this.url = url;
+    }
+
+    @Override
+    public void afterPropertiesSet() throws Exception {
+        System.out.println("NetworkClient.afterPropertiesSet");
+        connect();
+        call("초기화 연결 메시지");
+    }
+
+    @Override
+    public void destroy() throws Exception {
+        System.out.println("NetworkClient.destroy");
+        disconnect();
+    }
+}
+```
+
+##### 설정 정보 - 빈 등록 초기화, 소멸 메서드
+설정 정보를 이용한 특징
+- 메서드 이름을 자유롭게 사용 가능
+- 스프링 빈이 스프링 코드에 의존하지 않는다.
+- **코드가 아니라 설정 정보를 사용하기 때문에, 코드를 고칠 수 없는 외부 라이브러리에도 초기화, 종료 메서드를 적용할 수 있다.**
+
+```java
+    @Configuration
+    static class LifeCycleConfig{
+        @Bean(initMethod = "init", destroyMethod = "close")
+        public NetworkClient networkClient(){
+            NetworkClient networkClient = new NetworkClient();
+            networkClient.setUrl("http://hello-spring.dev");
+            return networkClient;
+        }
+    }
+```
+
+종료 메서드 destroyMethod 추론
+infer-method = "(inferred)"
+- 라이브러리는 대부분 'close', 'shutdown' 이라는 이름의 종료 메서드를 사용한다.
+- @Bean 의 default는  "(inferred)" 으로 등록되어 있따.
+- 이 추론 기능은 'close', 'shutdown' 이라는 이름의 종료 메서드를 자동으로 호출해준다. 그렇기에 따로 적어두지 않아도 잘 적동한다.
+- 만약 사용하기 싫다면 destroyMethod = "" 공백을 주면 된다.
+
+#### AutoCloseable 에 대해 공부해보자
+
+##### 애너테이션 - @PostConstruct, @PreDestroy
+**이 방법을 사용하자!!**
+- 최신 스프링에서 가장 권장하는 방법이다.
+- 애너테이션 하나만 붙이면 되므로 매우 편리하다.
+- 컴포넌트 스캔과 잘 아울린다.
+- 유일한 단점은 외부 라이브러리에 적용하지 못한다는 점이다. 외부 라이브러리를 초기화와 종료를 해야 한다면 @Bean의 기능을 사용하자.
+
+### 정리
+- 애너테이션을 이용해 관리하자
+- 코드를 고칠 수 없는 외부 라이브러리를 초기화와 종료를 해야한다면 구성 설정 정보에서 관리하자
