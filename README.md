@@ -1327,3 +1327,270 @@ infer-method = "(inferred)"
 ### 정리
 - 애너테이션을 이용해 관리하자
 - 코드를 고칠 수 없는 외부 라이브러리를 초기화와 종료를 해야한다면 구성 설정 정보에서 관리하자
+
+
+### 빈 스코프
+지금까지 우리는 스프링 빈이 스프링 컨테이너의 시작과 함께 생성되어 스프링 컨테이너가 종료될 떄 까지 유지된다고 학습했다.
+이것은 스프링 빈이 기본적으로 싱글톤 스코프로 생성되기 때문이다.
+
+> 스프링은 다양한 스코프를 지원한다.
+ 
+- 싱글톤
+  - 기본 스코프
+- 스코프
+  - 스프링 컨테이너는 프로토타입 빈의 생성과 의존관계 주입까지만 관여하고 더는 관리하지 않는 매우 짧은 범위의 스코프이다.
+- 웹 관련 스코프
+  - request : 웹 요청이 들어오고 나갈때 까지 유지되는 스코프이다.
+  - session : 웹 세션이 종료될 떄 까지 유지되는 스코프이다.
+  - application : 웹 서블릿 컨텍스와 같은 범위로 유지되는 스코프다.
+
+#### 빈 스코프 지정
+- 컴포넌트 스캔 자동 등록 : @Component 애너테이션을 붙인 구현체 위에 @Scope("prototype") 애너테이션을 붙이다.
+- 수동 등록 : 구성 설정 정보에 있는 @Bean 애너테이션이 붙은 구현체에 @Scope("prototype") 애너테이션을 붙인다.
+
+#### 프로토타입 스코프
+요청 값에 따른 새로운 빈을 생성해 의존관계를 주입하고 나서 리턴하고 나면 종료한다. 
+
+> 프로토타입의 핵심은 스프링 컨테이너는 프로토타입 빈을 생성하고, 의존관계 주입, 초기화까지만 처리한다는 것이다. (그러면 책임을 누가 지냐면 요청한 클라이언트가 책임을 지고 종료를 해줘야 한다.)
+> 클라이언트 빈을 반환하고, 이후 스프링 컨테이너는 생성된 프로토 타입 빈을 관리하지 않는다. 프로토타입 빈을 관리할 책임은 프로토타입 빈을 받은 클라이언트에 있다. **그래서 '@PreDestroy' 메서드가 호출되지 않는다.**
+
+
+#### 싱글톤 빈과 프로토타입 빈의 차이점
+- 싱글톤 빈은 스프링 컨테이너 생성 시점에 초기화 메서드가 실행 되지만, 프로토타입 스코프의 빈은 스프링 컨테이너에서 빈을 조회할 때 생성되고, 초기화 메서드도 실행된다.
+- 프로토타입 빈을 두 번 조회 했으므로 완전히 다른 스프링 빈이 생성되고, 초기화도 두 번 샐행된 것을 확인할 수 있다.
+- 싱글톤 비은 스프링 컨테이너가 관리하기 때문에 스프링 컨테이너가 종료될 때 빈의 종료 메서드가 실행되지만, 프로토타입 비은 스플이 컨테이너가 생성과 의존관계 주입 그리고 초기화 까지만 관여하고 더는 관리하지 않는다. 따라서 프로토타입 빈은 스프링 컨테이너가 종료될 때, @PreDestroy 같은 종료 메서드가 전혀 실행되지 않는다.
+
+#### 프로토타입 특징 정리
+- 스프링 컨테이너에 요청할 때 마다 새로 생성된다.
+- 스프링 컨테이너는 프로토타입 빈의 생성과 의존관계 주입 그리고 초기화까지만 관여한다.
+- **종료 메서드가 호출되지 않는다.**
+- 프로토타입 빈은 프로토타입 빈을 조회한 클라이언트가 관리해야 한다. 종료 메서드에 대한 호출도 클라이언트가 직접 해야 한다.
+
+### 프로토 타입을 싱글톤 빈과 함께 사용시 문제점
+
+스프링은 일반적으로 싱글톤 빈을 사용하므로, 싱글톤 빈이 프로토타입 빈을 사용하게 된다. 그런데 싱글톤 빈은 생성 시점에만 의존관계 주입을 받기 때문에,
+프로토타입 빈이 새로 생성되기는 하지만, 싱글톤 빈과 함께 계속 유지되는 것이 문제다.
+
+> 프로토타입 빈을 주입 시점에만 새로 생성하는 것이 아니라, 사용할 때 마다 새로 생성해서 사용하는 것을 원하기 때문에 개발자가 의도한 것이 아니다.
+ 
+> 여러 빈에서 같은 프로토타입 빈을 주입 받으면 주입 받는 시점에 각각 새로운 프로토타입 빈이 생성된다. 예를 들어 clientA와 clientB가 각각 의존관계 주입을 받으면
+> 각기 다른 인스턴스의 프로토 타입 빈을 주입 받는다. 물론, 사용할 때 마다 새로운 빈을 주입 받는건 아니다.
+
+```java
+
+    @Scope("singleton")
+    static class ClientBean{
+        private ApplicationContext applicationContext;
+        public int logic(){
+            PrototypeBean prototypeBean = applicationContext.getBean(PrototypeBean.class);
+            prototypeBean.addCount();
+            return prototypeBean.getCount();
+        }
+    }
+```
+위 코드를 실힝하면 호출 할 떄 마다 새로운 프로토타입 빈이 생성되는 것을 볼 수 있다. 이렇게 의존관계를 외부에서 주입받는 형식인 DI 형식이 아닌 직접 필요한 의존관계를 찾는 것을
+Dependency Lookup(DL) 의존관계 조회(탐색) 이라고 한다. 하지만 이렇게 스프링의 애플리케이션 컨텍스트 전체를 주입받게 되면, 스프링 컨테이너에 종속적인 코드가 되고, 단위 테스트도 어려워진다.
+
+지금 필요한 기능은 지정한 프로토타입 빈을 컨테이너에서 대신 찾아주는 DL 정도의 기능만 제공하는 기능만 있으면 해결할 수 있다.
+
+### ObjectFactory, ObjectProvider
+지정한 빈들 컨테이너에서 개신 찾아주는 DL 서비스를 기능이다. 과거에는 ObjectFactory 기능을 이용해서 DL 서비스를 사용했는데, 현재는 편의 기능을 더 추가해서 ObjectProvider 기능이 만들어졌다.
+
+- prototypeBeanObjectProvider.getObject()을 통해서 새로운 프로토타입 빈이 생성되는 것을 확인할 수 있다.
+- ObjectProvider 또는  ObjectFactory 을 통해 getObject() 메서드를 호출하면 내부에서 스프링 컨테이너를 통해 해당 빈을 찾아 반환한다. (DL - 의존관계 탐색)
+- 스프링이 제공하는 기능을 사용하지만, 기능이 단순하므로 단위테스트를 만들거나 mock 코드를 만들기 쉬워진다.
+
+```java
+    @Scope("singleton")
+    static class ClientBean{
+
+        @Autowired
+        private ObjectProvider<PrototypeBean> prototypeBeanObjectProvider;
+
+        public int logic(){
+            PrototypeBean prototypeBean = prototypeBeanObjectProvider.getObject();
+            prototypeBean.addCount();
+            return prototypeBean.getCount();
+        }
+    }
+```
+
+#### 특징
+- ObjectFactory : 기능이 단순하고 별도의 라이브러리가 필요 없다. 그리고 스프링에 의존적이다.
+- ObjectProvider : ObjectFactory 를 상속받았다. 옵션, 스트림 처리 등 편의 기능이 많고, 별도의 라이브러리가 필요 없다. 그리고 스프링에 의존적이다.
+
+### JSR-330 Provider
+마지막 방법은 javax.inject.Provider 라는 JSR-330 자바 표준을 사용하는 방법이다.
+
+- Provider.get()을 통해서 새로운 프로토타입 빈이 생성되는 것을 확인할 수 있다.
+- Provider를 통해 get() 메서드를 호출하면 내부에서 스프링 컨테이너를 통해 해당 빈을 찾아 반환한다. (DL - 의존관계 탐색)
+- 스프링이 제공하는 기능을 사용하지만, 기능이 단순하므로 단위테스트를 만들거나 mock 코드를 만들기 쉬워진다.
+- Provider는 지금 딱 필요한 DL 정도의 기능만 제공한다.
+- 
+```groovy
+	implementation 'javax.inject:javax.inject:1'
+```
+
+```java
+import javax.inject.Provider;
+
+    @Scope("singleton")
+    static class ClientBean{
+
+        @Autowired
+        private Provider<PrototypeBean> prototypeBeanObjectProvider;
+
+        public int logic(){
+            PrototypeBean prototypeBean = prototypeBeanObjectProvider.get();
+            prototypeBean.addCount();
+            return prototypeBean.getCount();
+        }
+    }
+```
+
+#### 특징
+- get() 메서드 하나로 기능이 매우 단순하다.
+- 별도의 라이브러리가 피룡하다.
+- 자바 표준이므로 스프링이 아닌 다른 컨테이너에서도 사용 가능하다.
+
+### 정리
+#### **그러면 프로토 타입 빈을 언제 사용할까?**
+매번 사용할 때 마다 의존 관계 주입이 완료된 새로운 객체가 필요할 때, 사용하면 된다. 하지만 실무에서 웹 애플리케이션을 개발해보면, 싱글톤 빈으로 대부분의 문제를 해결할 수 있기 때문에,
+프로토타입 빈을 직접적을 ㅗ사용하는 일은 매우 드물다. 그리고 ObjectProvider, JSR303 Provider 등은 프로토타입 뿐만 아니라 DL이 필요한 경우는 언제든지 사용할 수 있다.
+
+> 스프링이 제공한으 메서드에 @Lookup 애너테이션을 사용하는 방법도 있지만, 이전 방법들로 충분하고, 고려해야할 내용도 많아서 생략하겠다.
+
+#### ObjectProvider을 사용할지 JSR303 Provider을 사용할지 고민해보자
+ObjectProvider을 사용할 때는 ObjectProvider의 다양한 기능들을 사용할 필요가 있을 때 사용하면 되고 JSR303 Provider는 스프링이 아닌 다른 컨테이너에서 사용해야 한다면 이 기능을 사용하면 된다.
+
+스프링을 사용하다 보면 이 기능 뿐만 아니라 다른 기능들도 자바 표준과 스프링이 제공하는 기능이 겹칠때가 많다. 대부분 스프링이 더 다양하고 편리한 기능을 제공해주기 때문에, 특별히 다른 컨테이너를 사용할 일이 없다면
+스프링이 제공하는 기능을 사용하자.
+
+### 웹 스코프
+- 웹 환경에만 동작
+- 프로토타입과 다르게 스프링이 해당 스코프의 종료시점까지 관리한다. 따라서 종료 메서드가 호출된다.
+
+### 웹 스코프 종류
+- request 
+  - HTTP 요청 하나가 들어오고 나갈 때 까지 유지되는 스코프, 각각의 HTTP 요청마다 별도의 빈 인스턴스가 생성되고 관리된다.
+- session
+  - HTTP Session과 동일한 생명주기를 가지는 스코프
+- application
+  - 서블릿 컨텍스트(ServletContext)와 동일한 생명주기를 가지는 스코프
+- websocket
+  - 웹 소켓과 동일한 생명주기를 가지는 스코프
+
+request 요청 -> 특정 클라이언트 전용 빈 생성 (request scope) -> http request 가 같으면 전용 빈 (전용 request scope) 에서 활동
+**즉, Http request 에 따라 각각 정보를 제공해줌**
+
+### request 스코프 예제 만들어서 이해하기
+동시에 여러 HTTP 요청이 오면 어떤 요청이 남긴 로그인지 구분하기 어렵기에 이럴 때 사용하면 좋은 것이 바로 request 스코프이다. 로그 앞에 scope마다 uuid를 사용해서 HTTP 요청을 구분하자.
+
+build.gradle 파일에 스프링 부트 스타터 웹 라이브러리를 넣자
+```groovy
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+```
+
+spring-boot-starter-web 라이브러리를 추가하면 내장 톰켓 서버를 활용해 웹 서버와 스프링을 함께 실행한다.
+> 스프링 부트는 웹 라이브러리가 없으면 우리가 지금까지 학습한 AnnotationConfigApplicationContext 구현체를 기반으로 애플리케이션을 구동했지만 웹과 관련된
+> 추가 설정과 환경을 이용하려면 AnnotationConfigServletWebServerApplicationContext 구현체를 기반으로 사용해야 한다. (물론 이제부터 이 기능을 이용해 애플리케이션이 구동된다.)
+
+
+그냥 이렇게 설정하면 error 가 난다 왜냐하면 우리가 요청하는 request scope는 특정한 유저가 응답을 했을 때, 생성이 되고 응답이 끝나면 종료되는 생명 주기를 가지고 있다.
+그렇기에 아래와 같이 응답을 받기전에 컨테이너에서 의존관계를 주입하려고 하니 존재하지 않은 빈이라 판단하고 있다.
+
+```java
+//오류나는 컨트롤러
+@Controller
+@RequiredArgsConstructor
+public class LogDemoController {
+
+    private final LogDemoService logDemoService;
+    private final MyLogger myLogger;
+
+    @RequestMapping("log-demo")
+    @ResponseBody
+    public String logDemo(HttpServletRequest request){
+        StringBuffer requestURL = request.getRequestURL();
+        myLogger.setRequestURL(String.valueOf(requestURL));
+        myLogger.log("Controller test");
+        logDemoService.logic("testId");
+        return "OK";
+    }
+}
+```
+
+
+```java
+@Service
+@RequiredArgsConstructor
+public class LogDemoService {
+    private final MyLogger myLogger;
+
+    public void logic(String id) {
+        myLogger.log("Service id = " + id);
+    }
+}
+
+```
+> 왜 서비스에서 모든 로직을 사용하지 않았냐면 requestURL과 같은 웹과 관련된 정보가 웹과 관련 없는 서비스 계층까지 넘어가게 되면 안된다.
+서비스 계층은 웹 기술에 종속되지 않고, 가급적 순수하게 유지하는 것이 유지보수 관점에서 좋다.
+
+#### private final ObjectProvider<MyLogger> myLoggerObjectProvider
+
+ObjectProvider를 이용하면 MyLogger를 찾을 수 있는 DL이 주입이 되면서 에러가 나지 않는다.
+
+
+> 이런 로직은 컨트롤러 보다 공통 처리가 가능한 스프링 인터셉터와 서블릿 핏터에서 사용하자
+ 
+```java
+@Controller
+@RequiredArgsConstructor
+public class LogDemoController {
+
+    private final LogDemoService logDemoService;
+//    private final MyLogger myLogger;
+    private final ObjectProvider<MyLogger> myLoggerObjectProvider;
+
+    @RequestMapping("log-demo")
+    @ResponseBody
+    public String logDemo(HttpServletRequest request){
+        MyLogger myLogger = myLoggerObjectProvider.getObject();
+        StringBuffer requestURL = request.getRequestURL();
+        myLogger.setRequestURL(String.valueOf(requestURL));
+        myLogger.log("Controller test");
+        logDemoService.logic("testId");
+        return "OK";
+    }
+}
+```
+
+#### 프록시
+@Scope(value = "request", proxyMode = ScopedProxyMode.TARGET_CLASS)
+스프링이 조작해서 만든 빈이 등록이 되어있다. 즉 껍데기 구현체를 집어 넣고, 기능이 실제 호출하는 시점에서 진짜 객체를 찾아 넣는 작업을 한다.
+
+CGLIB라는 라이브러리로 내 클래스를 상속 받은 가짜 프록시 객체를 만들어서 주입한다.
+- @Scope 애너테이션의 proxyMode = ScopedProxyMode.TARGET_CLASS 명령어를 설정하면 스프링 컨테이너는 CGLIB 라는 바이트코드를 조작하는 라이브러리를 사용해 MyLogger를 상속받은 가짜 프록시 객체를 생성한다.
+- 결과를 확인하면 우리가 등록한 순수한 MyLogger 클래스가 등록되는 것이 아닌 스프링이 바이트 코드를 조작한 가짜 프록시 객체가 만들어져 등록되어져 있는 것을 알 수 있다.
+- 나중에 빈을 조회해도 프록시 객체가 조회되는 것을 확인할 수 있따.
+
+> 의존관계 주입도 가짜 프록시 객체가 주입되어 실행되게 때문에, 요청이 있어야 실행하는 request 스코프도 오류 없이 실행 시킬 수 있고, 실제 요청이 들어와 작업을 할 필요가 있을 떄, 프록시 객체는 실제 필요한 객체를 가져와 작업을 하도록 도와준다.
+***가짜 프록시 객체는 요청이 오면 그때 내부에서 진짜 빈을 요청하는 위임 로직이 들어있다.*
+
+프록시 빈은 내부에서 실제 객체를 찾아오는 방법을 가지고 있다.
+클라이언트가 해당 프록시 빈을 호출할 때, 가짜 프록시 객체의 메서드를 호출한 것이고, 이 호출을 받을 떄, 프록시 빈은 requst 스코프를 호출해 해당 작업을 실행한다.
+
+#### 어떻게 이게 가능한가? 
+**프록시 객체는 원본 클래스를 상속 받아 만들었기 때문에 해당 객체를 사용하는 클라이언트 입장에서는 
+실제 객체와 동일하게 사용할 수 있는 다형성의 특징을 가지고 있기 때문에 가능한 일이다.**
+
+#### 정리
+- 싱글톤을 사용하 듯이 편리하게 request 스코프를 사용할 수 있다.
+- 사실 Provider를 사용하든 프록시를 사용하든 핵심 아이디어는 **진짜 객체 조회를 꼭 필요한 시점까지 지연처리 한다는 점이다.**
+  - 진짜 HTTP 요청이 올 때까지 버티는 상황이다.
+- 단지 애너테이션 설정 변경만으로 원본 객체를 프록시 객체로 대체할 수 있다. 이것이 바로 다형성과 DI 컨테이너가 가진 큰 장점이다.
+- 꼭 웹 스코프가 아니더라도 프록시를 사용할 수 있다.
+
+#### 주의점
+- 마치 싱글톤을 사용하는 것 같지만 다르게 동작하기 때문에 결국 주의해서 사용해야 한다.
+- **이런 특별한 스코프는 꼭 필요한 곳에만 최소화해서 사용하자!! 무분별하게 사용하면 유지보수가 힘들어진다.**
